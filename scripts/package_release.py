@@ -64,6 +64,7 @@ def archive_source(source: Path, output: Path, expected_tag: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sunshine-source", type=Path, default=ROOT / ".cache" / "sunshine-source")
+    parser.add_argument("--reuse-source", action="store_true", help="Reuse an already generated corresponding-source archive")
     args = parser.parse_args()
     version = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["package"]["version"]
     executable = ROOT / "target" / "release" / "hd-screen-cast.exe"
@@ -81,14 +82,15 @@ def main() -> None:
     staging.mkdir(parents=True, exist_ok=True)
     collect_licenses(staging / "licenses")
     source_archive = dist / f'Sunshine-{manifest["sunshine_version"]}-corresponding-source.tar.gz'
-    archive_source(args.sunshine_source, source_archive, manifest["sunshine_version"])
+    if not args.reuse_source or not source_archive.is_file():
+        archive_source(args.sunshine_source, source_archive, manifest["sunshine_version"])
     common = [(executable, "HD-Screen-Cast.exe")]
     for name in ("README.md", "README.zh-CN.md", "LICENSE", "THIRD_PARTY_NOTICES.md", "packages-manifest.json"):
         common.append((ROOT / name, name))
     common.extend((path, str(Path("licenses") / path.relative_to(staging / "licenses"))) for path in (staging / "licenses").rglob("*") if path.is_file())
     for edition in ("Controller", "Offline"):
         filename = f"HD-Screen-Cast-v{version}-windows-x64-{edition}.zip"
-        with zipfile.ZipFile(dist / filename, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+        with zipfile.ZipFile(dist / filename, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, strict_timestamps=False) as archive:
             for source, relative in common:
                 archive.write(source, relative)
             if edition == "Offline":
