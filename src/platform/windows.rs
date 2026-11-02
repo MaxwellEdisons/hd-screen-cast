@@ -30,6 +30,8 @@ use windows::{
     core::{PCWSTR, w},
 };
 
+mod setup;
+
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const DRIVER_QUERY: &str = r#"
 $ErrorActionPreference='Stop'
@@ -373,6 +375,7 @@ pub fn snapshot() -> Snapshot {
         displays: native_displays(),
         ..Default::default()
     };
+    snapshot.packages_available = setup::available();
     match fs::read_to_string(virtual_config_path())
         .map_err(|error| error.to_string())
         .and_then(|xml| crate::virtual_config::parse(&xml))
@@ -506,6 +509,10 @@ fn perform(action: Action) -> Result<String, String> {
         return Err("此操作需要管理员权限".into());
     }
     match action {
+        Action::Initialize {
+            sunshine,
+            virtual_driver,
+        } => setup::initialize(sunshine, virtual_driver),
         Action::Start => {
             service("Start")?;
             Ok("Sunshine 已启动。".into())

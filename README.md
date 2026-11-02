@@ -1,71 +1,161 @@
-# Sunshine Control — Windows 版
+# HD Screen Cast · 高清投屏
 
-Rust 原生 GUI，用于管理已安装的 Sunshine 和 MTT Virtual Display Driver。电视继续使用 Moonlight。
+**High-resolution PC-to-TV desktop streaming with independent virtual displays.**
 
-## 功能
+[简体中文](README.zh-CN.md) · [Download](https://github.com/MaxwellEdisons/hd-screen-cast/releases/latest) · [Moonlight Android APK](https://github.com/moonlight-stream/moonlight-android/releases)
 
-- 列出 Windows 当前连接的屏幕、主屏、虚拟屏、分辨率和刷新率。
-- 查看当前捕获目标，切换到指定屏幕或跟随主屏。
-- 启动、停止、重启 Sunshine 服务。
-- 启用、关闭已安装的 MTT 虚拟显示驱动；关闭正在共享的虚拟屏时回退到主屏。
-- 配置 1～4 块虚拟屏，添加、修改或移除可用画面模式（分辨率和刷新率）。所有虚拟屏共用此模式列表，每块屏的当前模式在 Windows 显示设置中选择。
-- 修改驱动配置前备份；应用配置时重启已启用的虚拟驱动，重新识别共享目标，失败时尝试恢复原配置和原运行状态。未启用驱动时只保存配置。
-- 切换目标前备份配置；应用后台处理操作，按需申请 Windows UAC 授权。
-- 打开 Sunshine 管理和配对页面、Windows 显示设置。
-- 显示 Sunshine 日志；可选通过 ADB 读取 Moonlight 性能信息和近期解码阻塞记录。
-- 只在启动、手动刷新和管理操作完成后读取状态；没有定时轮询。读取或操作时显示居中的弹出遮罩，保留主页面布局。
+HD Screen Cast is a Rust desktop app that combines Sunshine installation, screen selection, virtual-display configuration, and local diagnostics. Your TV receives the desktop using Moonlight.
 
-## 前置条件
+## Use cases
 
-1. Windows 10/11 x64，Sunshine 安装在默认的 `Program Files\Sunshine`，并注册 `SunshineService` 服务。
-2. 如需虚拟屏，先安装 MTT Virtual Display Driver，并在 Windows 显示设置中选用扩展桌面。应用不附带、下载或安装驱动和证书，也不会修改实体屏分辨率。
-3. 电视已安装 Moonlight，并与 Sunshine 配对。
-4. 可选：安装 Android platform-tools，电视允许 ADB 调试；在应用设置中填写电视 IP 和 ADB 路径。
+Built-in casting can offer limited resolution choices, an unsuitable aspect ratio, or only a copy of your primary monitor. HD Screen Cast provides another workflow:
 
-Sunshine 的显示器 ID 来自其启动日志。新接入的显示器需要重启 Sunshine 后刷新列表；应用不会凭屏幕编号猜测稳定 ID。切换屏幕或重启服务会中断串流，需要在 Moonlight 中重新连接。
+- Share a selected physical monitor, or create an independent virtual desktop.
+- Configure virtual resolutions and refresh rates independently of your physical monitor's resolution.
+- Use the TV as an additional desktop for presentations, documents, browsing, video, and games.
+- Use 1440p/4K modes when your host GPU, client decoder, TV, and network support them.
 
-## 开发与检查
-
-在此目录执行：
+**Current release: Windows 10/11 x64. macOS is planned, not implemented.** This is not an AirPlay/Miracast implementation. It cannot bypass hardware or network limits. Virtual screens share the same Windows session, mouse, and keyboard.
 
 ```text
-cargo check
+Windows PC: HD Screen Cast + Sunshine + optional virtual display
+                          ↓ local network
+TV / Android TV / TV box: Moonlight
+```
+
+## Downloads
+
+Get files from [GitHub Releases](https://github.com/MaxwellEdisons/hd-screen-cast/releases/latest).
+
+| Package | Intended use | Contents |
+| --- | --- | --- |
+| `HD-Screen-Cast-v0.3.0-windows-x64-Offline.zip` | A new Windows PC | App, official Sunshine MSI, signed VDD, Microsoft runtime installer, licenses and checksums |
+| `HD-Screen-Cast-v0.3.0-windows-x64-Controller.zip` | Components already installed | App and documentation; no component installers |
+
+**Extract the entire ZIP**, then run `HD-Screen-Cast.exe`. Keep `packages/` next to the executable in the Offline package. Drivers and services must be registered with Windows: copying the folder to another PC still requires first-time initialization.
+
+The published GUI needs no Python, Rust, Node.js, or WebView installation. It uses the static C runtime; the bundled VC++ installer provides external component prerequisites.
+
+## Complete setup instructions
+
+### 1. Initialize the Windows PC
+
+1. Download and extract the **Offline** package.
+2. Run `HD-Screen-Cast.exe`, then open **首次初始化** (First-time setup).
+3. Select missing components and click **一键初始化所选组件** (Initialize selected components).
+4. Accept Windows administrator approval and complete any installer/driver-publisher confirmation windows yourself.
+5. The app verifies package SHA-256 hashes, installs the runtime and selected missing components, and creates a default **2560×1440 / 60Hz** VDD configuration only if no configuration exists.
+6. If Windows requests a restart, restart manually, reopen the app, and click **刷新状态** (Refresh).
+
+Existing installations are skipped. The app does not import root certificates, disable driver signature enforcement, overwrite existing accounts, or copy another PC's pairing identity. After an installation failure, completed components remain installed; resolve the reported problem and retry.
+
+### 2. Set up Sunshine
+
+1. Connect PC and TV to the same router. Ethernet or a good 5GHz Wi-Fi connection is preferable.
+2. Start the streaming service under **屏幕与串流** (Screens & streaming), if stopped.
+3. Open [Sunshine local management](https://localhost:47990), or use the app's setup-account button.
+4. Create the Sunshine username and password. The local interface uses a local certificate; check the `localhost` address and handle browser certificate prompts yourself.
+
+### 3. Install and pair Moonlight on the TV
+
+**Official Android APK downloads: [moonlight-stream/moonlight-android/releases](https://github.com/moonlight-stream/moonlight-android/releases).**
+
+1. Install Moonlight from the Android TV/Google TV app store, or download the appropriate APK from that official page.
+2. If the TV cannot download directly, transfer the APK using a supported USB or file-transfer method, then install it on the TV. Installation availability and permission requirements depend on the TV system.
+3. Open Moonlight and select your PC. If discovery fails, add the PC's LAN IPv4 address manually.
+4. Moonlight displays a PIN. Click **电视配对** (Pair TV) on the PC and enter that PIN in Sunshine.
+5. After pairing, select **Desktop** in Moonlight.
+
+Apple TV uses the tvOS Moonlight client. Samsung Tizen/LG webOS cannot install an Android APK; use an Android TV box or a client supported by that platform.
+
+### 4. Choose a screen
+
+- Physical monitor: click **共享此屏幕** (Share this screen) beside that display.
+- Independent desktop: enable the virtual driver, refresh/restart Sunshine when prompted, and select the virtual screen.
+- Primary monitor: choose **跟随主屏** (Follow primary).
+
+Changing the target/restarting a component can disconnect streaming. Reconnect Desktop on the TV. A new virtual desktop may show only wallpaper: move a window into it with Windows display arrangement or `Win + Shift + Arrow`.
+
+### 5. Configure virtual screens
+
+Open **虚拟屏配置** (Virtual display settings): choose **1–4 displays**, and add/edit/remove up to 12 resolution/refresh-rate modes. Saving creates a backup, restarts an enabled driver and running Sunshine, and re-resolves the virtual capture target. A disabled driver only receives saved configuration until enabled.
+
+All virtual screens share the available-mode list. Select each screen's **active mode in Windows Display Settings**. Saving a supported mode does not change Moonlight's video resolution. Reducing the count may require a different capture target. Failures trigger configuration recovery attempts and report recovery errors.
+
+## Quality and responsiveness
+
+Configure this starting point **in Moonlight**:
+
+```text
+2560×1440 · 60 FPS · H.264 · HDR off · approximately 30 Mbps
+```
+
+This worked on the development TV, not necessarily every TV. If 4K is sharp but mouse response is delayed, inspect decoder time as well as network loss. The development TV accumulated a 4K H.264 decode backlog while 1440p60 worked better. HEVC/HDR compatibility depends on the client. The host app does not override Moonlight's codec preferences.
+
+### Tested hardware and measurements (2026-10-30)
+
+| Item | Test environment |
+| --- | --- |
+| Host GPU | **Intel Arc 130T integrated GPU**, using Intel Quick Sync hardware encoding; no discrete GPU required for this setup |
+| TV | Xiaomi TV, ADB model **MiTV_ASTP0**; Amlogic hardware decoder `OMX.amlogic.avc.decoder.awesome` |
+| Client / host | Moonlight Android **12.2** / Sunshine **2026.1028.122642** |
+| Network | Both devices on the same router's 5GHz Wi-Fi; TV reported a 150 Mbps link rate, not measured throughput |
+| Encoding | H.264, HDR off; approximately 31 Mbps at 1440p and 63 Mbps at 4K |
+
+| Scenario | Observations | Suggested use |
+| --- | --- | --- |
+| **1440p: 2560×1440 / 60 FPS** | Stable during roughly three minutes of continuous observation: approximately **59–60 rendered FPS**, **0% network frame loss**, usually **1–3 ms decoding**, with an occasional brief rise to about 20 ms followed by recovery; no sustained decode backlog observed | Interactive desktop use, office work, and presentations |
+| **4K: 3840×2160 / target 60 FPS** | This TV's decoder became the bottleneck, causing decode-queue overflows, queued frames, and mouse latency. One sample showed **43.54 received FPS**, **39.63 rendered FPS**, and approximately **161 ms average decoding**, with **0% network frame loss** | May be tried for **non-interactive, latency-tolerant content** if delayed output is acceptable; prefer 1440p60 for interaction |
+
+These are short observations of one integrated-GPU PC/TV combination, not a universal benchmark. The observed 4K bottleneck was the TV decoder; it does not establish that integrated graphics are inherently insufficient. The tested Sunshine version differs from the version pinned in the Offline package, whose fresh-install combination requires separate validation.
+
+## Diagnostics and refresh
+
+- State is read at startup, on manual Refresh, and after management operations. **No periodic system polling.**
+- A centered modal overlay keeps the existing page layout in place during operations.
+- Sunshine logs remain local and are not uploaded automatically.
+- Optional TV sampling: install Android platform-tools separately, authorize TV debugging, set TV address/ADB path in **应用设置**, enable Moonlight's performance overlay, then click **读取电视性能**.
+- ADB is optional and not bundled. Sampling is manual; recent decode-error logs can belong to earlier sessions.
+
+## Paths, permissions and limitations
+
+- Sunshine: `%ProgramFiles%\Sunshine`, service `SunshineService`.
+- Supported VDD settings: `C:\VirtualDisplayDriver\vdd_settings.xml`.
+- App settings/install logs: `%LOCALAPPDATA%\HDScreenCast`.
+- Backups sit beside the original: `sunshine.conf.backup-<timestamp>` / `vdd_settings.xml.backup-<timestamp>`.
+- Closing the app preserves stream/service/driver state. Use its stop/disable buttons when needed.
+- Privileged changes require UAC approval. Windows may require a manual restart; the app never reboots automatically.
+- Current GUI labels are Chinese; documentation is available in English and Chinese.
+- No separate login session, multi-user input isolation, macOS backend, tray icon, automatic updates, or automatic third-party uninstaller yet.
+- The app is not Authenticode-signed. Third-party files are unmodified official distributions with their own signatures/licenses.
+
+## Development
+
+Windows x64, a recent Rust toolchain, and Microsoft C++ build tools are required.
+
+```text
+cargo check --locked
 cargo fmt --check
+cargo build --release --locked
+python -X utf8 scripts/prepare_packages.py --with-sources
+python -X utf8 scripts/package_release.py
 ```
 
-运行或发布需要另行生成可执行文件：
+The preparation script downloads pinned official packages and verifies hashes without installing anything. Packaging uses an existing release executable; it does not run a build or install components.
 
-```text
-cargo run
-cargo build --release
-```
+`src/app.rs` contains the GUI; `src/platform/windows.rs` contains system integration; `src/platform/windows/setup.rs` implements initialization; `src/virtual_config.rs` edits driver XML while preserving unrelated options. `packages-manifest.json` pins dependency versions and hashes.
 
-`cargo check` 只做编译与类型检查，不会生成可运行的应用。遵守当前工作区规则，开发阶段不自动执行后两条命令。
+## Validation
 
-## 使用
+Type/format checks and Windows release builds are run before publication. Screen detection, navigation, configuration display, and modal refresh have been checked on the development PC. Clean Windows VM installation, installer prompts/reboots, and all privileged recovery paths still require broader validation. This is an early release, not a claim of full hardware coverage.
 
-1. 启动应用，等待读取服务和屏幕状态。
-2. 需要独立桌面时点击“启用虚拟屏”，在屏幕列表点击该屏幕的“共享此屏幕”。如果驱动已启用但没有可用屏幕，在 Windows 显示设置中启用扩展桌面。
-3. 接受 Windows 管理员提示，然后在电视 Moonlight 中连接 Desktop。
-4. 用 Windows 显示设置调整扩展屏排列；选中窗口后使用 `Win + Shift + 方向键` 移动窗口。
-5. 结束使用可关闭虚拟屏，或停止 Sunshine 服务。关闭应用本身保留当前运行状态。
+## License and credits
 
-电视端可先使用已验证的 `2560×1440 / 60 FPS / H.264 / HDR 关闭 / 约 31 Mbps`。这些设置由 Moonlight 管理，控制台不会假装修改客户端编码参数。
+Application: [MIT](LICENSE). Components remain separate software under their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and release `licenses/`.
 
-## 配置与恢复
+- [Sunshine](https://github.com/LizardByte/Sunshine): GPL-3.0; unmodified official MSI. Corresponding source is offered on the same release page.
+- [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver): MIT; official signed driver.
+- [Moonlight Android](https://github.com/moonlight-stream/moonlight-android): installed separately on the TV.
+- Microsoft Visual C++ Redistributable: Microsoft's license terms, unmodified prerequisite installer.
 
-- 应用设置：`%LOCALAPPDATA%\SunshineControl\preferences.json`，不保存 Sunshine 密码。
-- 管理动作：当前可执行程序以管理员身份执行受限操作；命令请求仅允许服务启停、选择当前屏幕、启停指定虚拟驱动。
-- Sunshine 配置备份：`Program Files\Sunshine\config\sunshine.conf.backup-<时间戳>`。
-- 当前适配的 MTT 驱动配置：`C:\VirtualDisplayDriver\vdd_settings.xml`，备份保存在同目录 `vdd_settings.xml.backup-<时间戳>`。仅替换数量和模式列表，保留 GPU、HDR 等其他节点。配置位于其他路径时不会猜测或创建新配置文件。
-- 屏幕切换导致服务重启失败时，应用尝试恢复配置并启动服务；恢复错误会明确显示备份路径。
-- 若需要手动恢复，停止 Sunshine，使用所需备份覆盖 `sunshine.conf` 后重新启动服务。
-
-## 当前范围
-
-- 本版本面向 Windows；平台代码独立放在 `src/platform/windows.rs`，尚未实现 macOS 后端。
-- 不重写 Sunshine 的视频、音频和网络协议，不替代 Moonlight。
-- 不包含托盘、自启动、自动安装、在线更新和远程电脑管理。
-- ADB 数据为手动采样，近期日志事件可能属于之前的串流会话，不能据此认定当前持续积压。
-- 已通过类型检查、格式检查和 Windows release 构建；已启动 GUI 检查首页、诊断及设置页面，确认能读取本机四块屏幕和当前虚拟屏共享目标。
-- UAC、屏幕切换、服务启停、虚拟屏启停、配置应用及失败恢复尚未进行应用内实际操作验收；构建成功不等同于这些操作已验证。
+Independent community project; not an official Sunshine, Moonlight, Microsoft, or VirtualDrivers product.

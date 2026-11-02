@@ -8,7 +8,7 @@ pub fn data_dir() -> PathBuf {
     std::env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
-        .join("SunshineControl")
+        .join("HDScreenCast")
 }
 
 pub fn load_preferences() -> Preferences {

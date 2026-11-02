@@ -16,6 +16,7 @@ pub struct Display {
 #[derive(Clone, Debug, Default)]
 pub struct Snapshot {
     pub installed: bool,
+    pub packages_available: bool,
     pub service: String,
     pub displays: Vec<Display>,
     pub target: String,
@@ -50,9 +51,19 @@ pub enum Action {
     Start,
     Stop,
     Restart,
-    SelectDisplay { id: String },
-    SetVirtualDisplay { enabled: bool },
-    ConfigureVirtualDisplay { config: VirtualConfig },
+    SelectDisplay {
+        id: String,
+    },
+    SetVirtualDisplay {
+        enabled: bool,
+    },
+    ConfigureVirtualDisplay {
+        config: VirtualConfig,
+    },
+    Initialize {
+        sunshine: bool,
+        virtual_driver: bool,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

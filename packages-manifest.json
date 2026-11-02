@@ -1,0 +1,49 @@
+{
+  "sunshine_version": "v2026.914.233613",
+  "driver_version": "25.7.23",
+  "files": [
+    {
+      "path": "packages/Sunshine-Windows-AMD64-installer.msi",
+      "sha256": "1d7fed8beecd5889dc7ff14cf9f42d6d38f37c3066c13c6c2a5f4e91847e0ccf"
+    },
+    {
+      "path": "packages/virtual-display-driver/mttvdd.cat",
+      "sha256": "08a0093fc9b2e32b287a6f8a77ca4de0a31830d29fc33d2b13a918dc859468f6"
+    },
+    {
+      "path": "packages/virtual-display-driver/MttVDD.dll",
+      "sha256": "c9ca837f57a98fbd43bc416a7f535a95843626e7759eaf85cf0cd7ce334dbb05"
+    },
+    {
+      "path": "packages/virtual-display-driver/MttVDD.inf",
+      "sha256": "550d211fe481e74dfe3f9d724ed78be48b3a9113405965d683d9373e8d672f5d"
+    },
+    {
+      "path": "packages/virtual-display-driver/vdd_settings.xml",
+      "sha256": "edb2501d6d5da17f66d15d4b97a6f4a3f0d8963165ac4a6a6259d95118288020"
+    },
+    {
+      "path": "packages/vc_redist.x64.exe",
+      "sha256": "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b"
+    }
+  ],
+  "downloads": [
+    {
+      "repo": "LizardByte/Sunshine",
+      "tag": "v2026.914.233613",
+      "asset": "Sunshine-Windows-AMD64-installer.msi",
+      "sha256": "1d7fed8beecd5889dc7ff14cf9f42d6d38f37c3066c13c6c2a5f4e91847e0ccf"
+    },
+    {
+      "repo": "VirtualDrivers/Virtual-Display-Driver",
+      "tag": "25.7.23",
+      "asset": "VirtualDisplayDriver-x86.Driver.Only.zip",
+      "sha256": "e24210692b442b39af763536330ce78b423f19342b7a7792c26de3944e418b3a"
+    },
+    {
+      "url": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+      "asset": "vc_redist.x64.exe",
+      "sha256": "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b"
+    }
+  ]
+}

@@ -20,6 +20,7 @@ enum Event {
 
 #[derive(Clone, Copy, PartialEq)]
 enum Page {
+    Setup,
     Screens,
     Virtual,
     Diagnostics,
@@ -40,6 +41,8 @@ pub struct ControlApp {
     virtual_draft: Option<VirtualConfig>,
     virtual_dirty: bool,
     applying_virtual: bool,
+    install_sunshine: bool,
+    install_driver: bool,
 }
 
 impl ControlApp {
@@ -104,6 +107,8 @@ impl ControlApp {
             virtual_draft: None,
             virtual_dirty: false,
             applying_virtual: false,
+            install_sunshine: true,
+            install_driver: true,
         };
         app.refresh(&cc.egui_ctx);
         app
@@ -167,10 +172,11 @@ impl ControlApp {
             .exact_width(204.0)
             .show(ctx, |ui| {
                 ui.add_space(25.0);
-                ui.label(RichText::new("SUNSHINE").color(GREEN).strong().size(23.0));
+                ui.label(RichText::new("高清投屏").color(GREEN).strong().size(23.0));
                 ui.label(RichText::new("串流控制台").color(MUTED).size(14.0));
                 ui.add_space(35.0);
                 for (page, label) in [
+                    (Page::Setup, "首次初始化"),
                     (Page::Screens, "屏幕与串流"),
                     (Page::Virtual, "虚拟屏配置"),
                     (Page::Diagnostics, "运行诊断"),
@@ -216,12 +222,13 @@ impl ControlApp {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 ui.heading(match self.page {
+                    Page::Setup => "让新电脑准备好高清投屏。",
                     Page::Screens => "把合适的屏幕，交给电视。",
                     Page::Virtual => "为电视准备合适的独立桌面。",
                     Page::Diagnostics => "看清串流的运行状态。",
                     Page::Settings => "让控制台适合你的设备。",
                 });
-                ui.label(RichText::new("Sunshine Control / Windows").color(MUTED));
+                ui.label(RichText::new("HD Screen Cast / Windows").color(MUTED));
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
@@ -249,6 +256,64 @@ impl ControlApp {
             ui.colored_label(Color32::LIGHT_RED, error);
         }
         ui.add_space(10.0);
+    }
+
+    fn setup(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        ui.heading("安装所需组件");
+        ui.label("完整离线包已经包含安装组件。初始化会申请管理员权限，并打开必要的 Windows 安装确认窗口。");
+        ui.add_space(12.0);
+        egui::Frame::new().fill(PANEL).inner_margin(18.0).corner_radius(10.0).show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.add_enabled(!self.state.installed && !self.busy, egui::Checkbox::new(&mut self.install_sunshine, "Sunshine 串流服务"));
+                ui.colored_label(if self.state.installed { GREEN } else { MUTED }, if self.state.installed { "已安装，不会覆盖" } else { "需要安装" });
+            });
+            ui.horizontal(|ui| {
+                ui.add_enabled(!self.state.virtual_installed && !self.busy, egui::Checkbox::new(&mut self.install_driver, "Virtual Display Driver 虚拟屏驱动"));
+                ui.colored_label(if self.state.virtual_installed { GREEN } else { MUTED }, if self.state.virtual_installed { "已安装，不会覆盖" } else { "可选，独立桌面需要" });
+            });
+            ui.label(RichText::new("安装前会校验组件 SHA-256；同时安装或修复 Microsoft Visual C++ x64 运行库。现有账号、配对和配置不会复制到其他电脑。").color(MUTED));
+            ui.label(RichText::new("驱动需注册到 Windows，应用不会自动导入根证书或关闭签名检查。如 Windows 提示重启，请手动重启。").color(MUTED));
+        });
+        ui.add_space(12.0);
+        if !self.state.packages_available {
+            ui.colored_label(
+                Color32::YELLOW,
+                "当前目录缺少完整安装组件。请下载并完整解压 Offline 离线包，保留 packages 文件夹。",
+            );
+        }
+        let needed = (self.install_sunshine && !self.state.installed)
+            || (self.install_driver && !self.state.virtual_installed);
+        if ui
+            .add_enabled(
+                !self.busy && self.has_snapshot && self.state.packages_available && needed,
+                egui::Button::new("一键初始化所选组件"),
+            )
+            .clicked()
+        {
+            self.act(
+                ctx,
+                Action::Initialize {
+                    sunshine: self.install_sunshine,
+                    virtual_driver: self.install_driver,
+                },
+                "安装组件，请完成 Windows 安装提示",
+            );
+        }
+        ui.add_space(18.0);
+        ui.heading("接下来怎么用");
+        ui.label("1. 电脑和电视连接同一路由器，优先使用有线网络或 5GHz Wi-Fi。\n2. 打开 Sunshine 管理页面，设置账号和密码。\n3. 电视安装 Moonlight，选择电脑，将 PIN 输入 Sunshine 配对页面。\n4. 在本应用选择实体屏或虚拟屏，在电视中启动 Desktop。\n5. 先从 2K / 60 FPS / H.264 / HDR 关闭开始，再根据解码性能调整。");
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("设置 Sunshine 账号").clicked() {
+                self.opened("https://localhost:47990");
+            }
+            if ui.button("电视配对").clicked() {
+                self.opened("https://localhost:47990/pin");
+            }
+            if ui.button("Moonlight 安卓 APK 下载").clicked() {
+                self.opened("https://github.com/moonlight-stream/moonlight-android/releases");
+            }
+        });
     }
 
     fn screens(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -568,7 +633,7 @@ impl ControlApp {
         }
         ui.add_space(20.0);
         ui.heading("工作方式");
-        ui.label("• Sunshine 使用默认安装位置：Program Files\\Sunshine。\n• 应用常规运行无需管理员权限，修改服务、驱动和捕获目标时才申请授权。\n• 每次切换共享目标都会在 Sunshine 配置目录保留备份。\n• 此版本管理已安装的 Sunshine 和 MTT 虚拟显示驱动，不安装驱动或证书。\n• 虚拟屏分辨率由驱动及 Windows 显示设置管理。\n• 关闭应用会保留当前串流和屏幕配置。停止服务请使用首页按钮。");
+        ui.label("• Sunshine 使用默认安装位置：Program Files\\Sunshine。\n• 应用常规运行无需管理员权限，初始化或修改服务、驱动和捕获目标时才申请授权。\n• 每次切换共享目标都会在 Sunshine 配置目录保留备份。\n• 完整离线包支持首次初始化；已安装组件会跳过。\n• 虚拟屏分辨率由驱动及 Windows 显示设置管理。\n• 关闭应用会保留当前串流和屏幕配置。停止服务请使用首页按钮。");
         ui.add_space(12.0);
         if ui.button("打开本地设置目录").clicked() {
             self.opened(&platform::data_dir().to_string_lossy());
@@ -582,6 +647,9 @@ impl eframe::App for ControlApp {
             self.busy = false;
             match event {
                 Event::Snapshot(state) => {
+                    if !self.has_snapshot && (!state.installed || !state.virtual_installed) {
+                        self.page = Page::Setup;
+                    }
                     if !self.virtual_dirty {
                         self.virtual_draft.clone_from(&state.virtual_config);
                     }
@@ -615,6 +683,7 @@ impl eframe::App for ControlApp {
                 ui.add_space(18.0);
                 self.header(ui, ctx);
                 match self.page {
+                    Page::Setup => self.setup(ui, ctx),
                     Page::Screens => self.screens(ui, ctx),
                     Page::Virtual => self.virtual_settings(ui, ctx),
                     Page::Diagnostics => self.diagnostics(ui, ctx),
