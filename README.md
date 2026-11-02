@@ -1,10 +1,10 @@
-# HD Screen Cast · 高清投屏
+# HD Screen Cast
 
 **High-resolution PC-to-TV desktop streaming with independent virtual displays.**
 
-[简体中文](README.zh-CN.md) · [Download](https://github.com/MaxwellEdisons/hd-screen-cast/releases/latest) · [Moonlight Android APK](https://github.com/moonlight-stream/moonlight-android/releases)
+[Chinese documentation](README.zh-CN.md) · [Download](https://github.com/MaxwellEdisons/hd-screen-cast/releases/latest) · [Moonlight Android APK](https://github.com/moonlight-stream/moonlight-android/releases)
 
-HD Screen Cast is a Rust desktop app that combines Sunshine installation, screen selection, virtual-display configuration, and local diagnostics. Your TV receives the desktop using Moonlight. The interface defaults to English; switch to 简体中文 in Settings → Interface language.
+HD Screen Cast is a Rust desktop app that combines Sunshine installation, screen selection, virtual-display configuration, and local diagnostics. Your TV receives the desktop using Moonlight. The interface defaults to English; switch to Simplified Chinese in Settings → Interface language.
 
 ## Use cases
 
@@ -41,18 +41,18 @@ The published GUI needs no Python, Rust, Node.js, or WebView installation. It us
 ### 1. Initialize the Windows PC
 
 1. Download and extract the **Offline** package.
-2. Run `HD-Screen-Cast.exe`, then open **First-time setup** (首次初始化).
-3. Select missing components and click **Initialize selected components** (一键初始化所选组件).
+2. Run `HD-Screen-Cast.exe`, then open **First-time setup**.
+3. Select missing components and click **Initialize selected components**.
 4. Accept Windows administrator approval and complete any installer/driver-publisher confirmation windows yourself.
 5. The app verifies package SHA-256 hashes, installs the runtime and selected missing components, and creates a default **2560×1440 / 60Hz** VDD configuration only if none exists. A newly installed virtual driver is disabled by default, leaving no idle extra desktop.
-6. If Windows requests a restart, restart manually, reopen the app, and click **Refresh status** (刷新状态).
+6. If Windows requests a restart, restart manually, reopen the app, and click **Refresh status**.
 
 Existing installations are skipped. The app does not import root certificates, disable driver signature enforcement, overwrite existing accounts, or copy another PC's pairing identity. After an installation failure, completed components remain installed; resolve the reported problem and retry.
 
 ### 2. Set up Sunshine
 
 1. Connect PC and TV to the same router. Ethernet or a good 5GHz Wi-Fi connection is preferable.
-2. Start the streaming service under **Screens & streaming** (屏幕与串流), if stopped.
+2. Start the streaming service under **Screens & streaming**, if stopped.
 3. Open [Sunshine local management](https://localhost:47990), or use the app's setup-account button.
 4. Create the Sunshine username and password. The local interface uses a local certificate; check the `localhost` address and handle browser certificate prompts yourself.
 
@@ -63,28 +63,28 @@ Existing installations are skipped. The app does not import root certificates, d
 1. Install Moonlight from the Android TV/Google TV app store, or download the appropriate APK from that official page.
 2. If the TV cannot download directly, transfer the APK using a supported USB or file-transfer method, then install it on the TV. Installation availability and permission requirements depend on the TV system.
 3. Open Moonlight and select your PC. If discovery fails, add the PC's LAN IPv4 address manually.
-4. Moonlight displays a PIN. Click **Pair TV** (电视配对) on the PC and enter that PIN in Sunshine.
+4. Moonlight displays a PIN. Click **Pair TV** on the PC and enter that PIN in Sunshine.
 5. After pairing, select **Desktop** in Moonlight.
 
 Apple TV uses the tvOS Moonlight client. Samsung Tizen/LG webOS cannot install an Android APK; use an Android TV box or a client supported by that platform.
 
 ### 4. Choose a screen
 
-- Physical monitor: click **Share this screen** (共享此屏幕) beside that display.
-- Independent desktop: click **Start virtual-screen streaming** (开启虚拟屏串流). The app enables virtual screens on demand and binds a capture target; reconnect Desktop on the TV. The driver only needs to be installed once.
-- Primary monitor: choose **Follow primary** (跟随主屏).
+- Physical monitor: click **Share this screen** beside that display.
+- Independent desktop: click **Start virtual-screen streaming**. The app enables virtual screens on demand and binds a capture target; reconnect Desktop on the TV. The driver only needs to be installed once.
+- Primary monitor: choose **Follow primary**.
 
 Changing the target/restarting a component can disconnect streaming. Reconnect Desktop on the TV. A new virtual desktop may show only wallpaper: move a window into it with Windows display arrangement or `Win + Shift + Arrow`.
 
 ### 5. Configure virtual screens
 
-Open **Virtual displays** (虚拟屏配置): choose **1–4 displays**, and add/edit/remove up to 12 resolution/refresh-rate modes. Saving creates a backup, restarts an enabled driver and running Sunshine, and re-resolves the virtual capture target. A disabled driver only receives saved configuration until enabled.
+Open **Virtual displays**: choose **1–4 displays**, and add/edit/remove up to 12 resolution/refresh-rate modes. Saving creates a backup, restarts an enabled driver and running Sunshine, and re-resolves the virtual capture target. A disabled driver only receives saved configuration until enabled.
 
 All virtual screens share the available-mode list. Select each screen's **active mode in Windows Display Settings**. Saving a supported mode does not change Moonlight's video resolution. Reducing the count may require a different capture target. Failures trigger configuration recovery attempts and report recovery errors.
 
 ### Release virtual screens when finished
 
-Click **Stop and release virtual screens** (停止并释放虚拟屏), or exit the app normally. Its managed virtual-screen stream is ended and the virtual driver is disabled, removing the extra Windows desktop instead of leaving windows on an idle screen. It does not silently continue streaming the primary monitor. Exit cleanup may require UAC approval; cancellation or cleanup failure keeps the app open with an explanation.
+Click **Stop and release virtual screens**, or exit the app normally. Its managed virtual-screen stream is ended and the virtual driver is disabled, removing the extra Windows desktop instead of leaving windows on an idle screen. It does not silently continue streaming the primary monitor. Exit cleanup may require UAC approval; cancellation or cleanup failure keeps the app open with an explanation.
 
 Physical-monitor streaming can continue after closing the app. Force-terminating the process or losing power can bypass cleanup; reopen the app and use Stop and release virtual screens to recover.
 
@@ -131,7 +131,7 @@ These are short observations of one integrated-GPU PC/TV combination, not a univ
 - Backups sit beside the original: `sunshine.conf.backup-<timestamp>` / `vdd_settings.xml.backup-<timestamp>`.
 - Normal exit releases virtual displays managed by this app. Physical-monitor streaming may continue. The Stop button stops Sunshine and releases virtual displays.
 - Privileged changes require UAC approval. Windows may require a manual restart; the app never reboots automatically.
-- The GUI defaults to **English**. Open **Settings → Interface language** to switch between English and 简体中文. Changes apply immediately and persist after restart; original system errors and logs retain their source language. English and Chinese documentation are included.
+- The GUI defaults to **English**. Open **Settings → Interface language** to switch between English and Simplified Chinese. Changes apply immediately and persist after restart; original system errors and logs retain their source language. English and Chinese documentation are included.
 - No separate login session, multi-user input isolation, macOS backend, tray icon, automatic updates, or automatic third-party uninstaller yet.
 - The app is not Authenticode-signed. Third-party files are unmodified official distributions with their own signatures/licenses.
 
