@@ -22,6 +22,7 @@ pub struct Snapshot {
     pub target: String,
     pub virtual_installed: bool,
     pub virtual_enabled: bool,
+    pub virtual_managed: bool,
     pub virtual_config: Option<VirtualConfig>,
     pub virtual_config_error: Option<String>,
     pub log: String,
@@ -49,6 +50,8 @@ impl Snapshot {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Action {
     Start,
+    StartVirtualStream,
+    ReleaseVirtualSession,
     Stop,
     Restart,
     SelectDisplay {

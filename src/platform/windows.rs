@@ -57,6 +57,122 @@ fn virtual_config_path() -> PathBuf {
     PathBuf::from("C:/VirtualDisplayDriver/vdd_settings.xml")
 }
 
+fn virtual_session_path() -> PathBuf {
+    super::data_dir().join("virtual-session.json")
+}
+
+fn virtual_target(current: &Snapshot) -> bool {
+    current
+        .target_display()
+        .is_some_and(|display| display.virtual_display)
+        || model::log_displays(&read_log().unwrap_or_default())
+            .iter()
+            .any(|display| {
+                (display.device_id == current.target || display.display_name == current.target)
+                    && display
+                        .edid
+                        .as_ref()
+                        .is_some_and(|edid| edid.manufacturer_id == "MTT")
+            })
+}
+
+fn release_virtual(stop_service: bool) -> Result<String, String> {
+    let current = snapshot();
+    let owned = current.virtual_managed || virtual_target(&current);
+    if (stop_service || owned) && current.running() {
+        service("Stop")?;
+    }
+    // Keep a valid capture target for the next physical-screen session; do not resume capture here.
+    if owned && current.installed {
+        write_target("")?;
+    }
+    if current.virtual_enabled {
+        set_virtual_driver(false)?;
+        let start = Instant::now();
+        while native_displays()
+            .iter()
+            .any(|display| display.virtual_display)
+        {
+            if start.elapsed() > Duration::from_secs(12) {
+                return Err("虚拟驱动已请求关闭，但 Windows 尚未移除扩展屏。请刷新状态确认；本应用暂不退出。".into());
+            }
+            thread::sleep(Duration::from_millis(250));
+        }
+    }
+    if virtual_session_path().exists() {
+        fs::remove_file(virtual_session_path()).map_err(|error| error.to_string())?;
+    }
+    Ok("虚拟屏已释放，Windows 已移除对应扩展屏；不会自动改为共享主屏。".into())
+}
+
+fn start_virtual_stream() -> Result<String, String> {
+    let current = snapshot();
+    if !current.installed || !current.virtual_installed {
+        return Err("请先完成 Sunshine 和虚拟屏驱动初始化。".into());
+    }
+    if let Some(error) = &current.error {
+        return Err(error.clone());
+    }
+    if current.running() {
+        service("Stop")?;
+    }
+    let result = (|| -> Result<(), String> {
+        if !current.virtual_enabled {
+            set_virtual_driver(true)?;
+        }
+        let start = Instant::now();
+        while !native_displays()
+            .iter()
+            .any(|display| display.virtual_display)
+        {
+            if start.elapsed() > Duration::from_secs(15) {
+                return Err("虚拟驱动启用后未发现可用扩展屏，请检查 Windows 显示设置。".into());
+            }
+            thread::sleep(Duration::from_millis(250));
+        }
+        fs::create_dir_all(super::data_dir()).map_err(|error| error.to_string())?;
+        fs::write(virtual_session_path(), b"{\"managed\":true}")
+            .map_err(|error| error.to_string())?;
+        let start_time = SystemTime::now();
+        service("Start")?;
+        let start = Instant::now();
+        let targets = loop {
+            let fresh = fs::metadata(sunshine_dir().join("config/sunshine.log"))
+                .and_then(|metadata| metadata.modified())
+                .is_ok_and(|modified| modified >= start_time);
+            let targets: Vec<_> = model::log_displays(&read_log().unwrap_or_default())
+                .into_iter()
+                .filter(|display| {
+                    display
+                        .edid
+                        .as_ref()
+                        .is_some_and(|edid| edid.manufacturer_id == "MTT")
+                })
+                .collect();
+            if fresh && !targets.is_empty() {
+                break targets;
+            }
+            if start.elapsed() > Duration::from_secs(20) {
+                return Err("Sunshine 未能识别新启用的虚拟屏。".into());
+            }
+            thread::sleep(Duration::from_millis(250));
+        };
+        let target = targets
+            .iter()
+            .find(|display| display.device_id == current.target)
+            .unwrap_or(&targets[0]);
+        set_target(&target.device_id, true)?;
+        Ok(())
+    })();
+    if let Err(error) = result {
+        return match release_virtual(true) {
+            Ok(_) => Err(format!("开启虚拟屏串流失败，已释放虚拟屏：{error}")),
+            Err(cleanup) => Err(format!("开启失败：{error}\n清理未完成：{cleanup}")),
+        };
+    }
+    Ok("虚拟屏串流已开启。请在电视端连接 Desktop；停止串流或退出应用会释放虚拟屏。".into())
+}
+
 fn set_virtual_driver(enabled: bool) -> Result<(), String> {
     let verb = if enabled {
         "Enable-PnpDevice"
@@ -376,6 +492,7 @@ pub fn snapshot() -> Snapshot {
         ..Default::default()
     };
     snapshot.packages_available = setup::available();
+    snapshot.virtual_managed = virtual_session_path().exists();
     match fs::read_to_string(virtual_config_path())
         .map_err(|error| error.to_string())
         .and_then(|xml| crate::virtual_config::parse(&xml))
@@ -514,13 +631,15 @@ fn perform(action: Action) -> Result<String, String> {
             virtual_driver,
         } => setup::initialize(sunshine, virtual_driver),
         Action::Start => {
+            if virtual_target(&snapshot()) {
+                return start_virtual_stream();
+            }
             service("Start")?;
             Ok("Sunshine 已启动。".into())
         }
-        Action::Stop => {
-            service("Stop")?;
-            Ok("Sunshine 已停止，当前串流已断开。".into())
-        }
+        Action::Stop => release_virtual(true),
+        Action::StartVirtualStream => start_virtual_stream(),
+        Action::ReleaseVirtualSession => release_virtual(false),
         Action::Restart => {
             service("Restart")?;
             Ok("Sunshine 已重启，请在电视端重新连接。".into())
@@ -538,56 +657,31 @@ fn perform(action: Action) -> Result<String, String> {
             {
                 return Err("目标屏幕未连接，或显示器列表已变化。请刷新后重试。".into());
             }
-            set_target(&id, current.running())
+            let target_is_virtual = current
+                .displays
+                .iter()
+                .any(|display| display.id.as_ref() == Some(&id) && display.virtual_display);
+            if target_is_virtual {
+                write_target(&id)?;
+                return start_virtual_stream();
+            }
+            let result = set_target(&id, current.running())?;
+            if current.virtual_managed {
+                if current.virtual_enabled {
+                    set_virtual_driver(false)?;
+                }
+                if virtual_session_path().exists() {
+                    fs::remove_file(virtual_session_path()).map_err(|error| error.to_string())?;
+                }
+            }
+            Ok(result)
         }
         Action::SetVirtualDisplay { enabled } => {
-            let current = snapshot();
-            if let Some(error) = current.error {
-                return Err(error);
-            }
-            if !current.virtual_installed {
-                return Err("未检测到 MTT Virtual Display Driver，请先安装并在 Windows 中启用扩展桌面。此应用不会自动安装驱动或证书。".into());
-            }
-            if current.virtual_enabled == enabled {
-                return Ok("虚拟屏已经处于目标状态。".into());
-            }
-            let selected_virtual = current
-                .target_display()
-                .is_some_and(|display| display.virtual_display)
-                || model::log_displays(&read_log()?).iter().any(|display| {
-                    (display.device_id == current.target || display.display_name == current.target)
-                        && display
-                            .edid
-                            .as_ref()
-                            .is_some_and(|edid| edid.manufacturer_id == "MTT")
-                });
-            let mut fallback_backup = None;
-            if !enabled && selected_virtual {
-                fallback_backup = Some(write_target("")?);
-            }
-            let result = set_virtual_driver(enabled);
-            if let Err(error) = result {
-                if let Some(backup) = fallback_backup {
-                    fs::copy(backup, config_path()).map_err(|restore| {
-                        format!("驱动操作失败：{error}；配置恢复失败：{restore}")
-                    })?;
-                }
-                return Err(error);
-            }
-            if current.running()
-                && let Err(error) = service("Restart")
-            {
-                return Err(format!(
-                    "虚拟屏状态已更改，但 Sunshine 重启失败：{error}。请手动启动 Sunshine。"
-                ));
-            }
-            Ok(if enabled {
-                "虚拟屏已启用。刷新后选择该屏幕进行共享；如果没有出现在列表中，请打开 Windows 显示设置，选择扩展桌面。".into()
-            } else if selected_virtual {
-                "虚拟屏已关闭，共享目标已切回主屏。请在电视端重新连接。".into()
+            if enabled {
+                start_virtual_stream()
             } else {
-                "虚拟屏已关闭。".into()
-            })
+                release_virtual(false)
+            }
         }
         Action::ConfigureVirtualDisplay { config } => configure_virtual(config),
     }

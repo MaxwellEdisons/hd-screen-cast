@@ -199,6 +199,8 @@ pub(super) fn initialize(want_sunshine: bool, want_driver: bool) -> Result<Strin
 "#).map_err(|error| error.to_string())?;
         }
         reboot |= install_driver(&destination.join("MttVDD.inf"))?;
+        // Installed is not the same as active: never leave a fresh PC with an idle extra desktop.
+        set_virtual_driver(false)?;
     }
     let after = snapshot();
     if install_sunshine && !after.installed {

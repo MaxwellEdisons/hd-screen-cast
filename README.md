@@ -44,7 +44,7 @@ The published GUI needs no Python, Rust, Node.js, or WebView installation. It us
 2. Run `HD-Screen-Cast.exe`, then open **首次初始化** (First-time setup).
 3. Select missing components and click **一键初始化所选组件** (Initialize selected components).
 4. Accept Windows administrator approval and complete any installer/driver-publisher confirmation windows yourself.
-5. The app verifies package SHA-256 hashes, installs the runtime and selected missing components, and creates a default **2560×1440 / 60Hz** VDD configuration only if no configuration exists.
+5. The app verifies package SHA-256 hashes, installs the runtime and selected missing components, and creates a default **2560×1440 / 60Hz** VDD configuration only if none exists. A newly installed virtual driver is disabled by default, leaving no idle extra desktop.
 6. If Windows requests a restart, restart manually, reopen the app, and click **刷新状态** (Refresh).
 
 Existing installations are skipped. The app does not import root certificates, disable driver signature enforcement, overwrite existing accounts, or copy another PC's pairing identity. After an installation failure, completed components remain installed; resolve the reported problem and retry.
@@ -71,7 +71,7 @@ Apple TV uses the tvOS Moonlight client. Samsung Tizen/LG webOS cannot install a
 ### 4. Choose a screen
 
 - Physical monitor: click **共享此屏幕** (Share this screen) beside that display.
-- Independent desktop: enable the virtual driver, refresh/restart Sunshine when prompted, and select the virtual screen.
+- Independent desktop: click **开启虚拟屏串流** (Start virtual-screen streaming). The app enables virtual screens on demand and binds a capture target; reconnect Desktop on the TV. The driver only needs to be installed once.
 - Primary monitor: choose **跟随主屏** (Follow primary).
 
 Changing the target/restarting a component can disconnect streaming. Reconnect Desktop on the TV. A new virtual desktop may show only wallpaper: move a window into it with Windows display arrangement or `Win + Shift + Arrow`.
@@ -81,6 +81,12 @@ Changing the target/restarting a component can disconnect streaming. Reconnect D
 Open **虚拟屏配置** (Virtual display settings): choose **1–4 displays**, and add/edit/remove up to 12 resolution/refresh-rate modes. Saving creates a backup, restarts an enabled driver and running Sunshine, and re-resolves the virtual capture target. A disabled driver only receives saved configuration until enabled.
 
 All virtual screens share the available-mode list. Select each screen's **active mode in Windows Display Settings**. Saving a supported mode does not change Moonlight's video resolution. Reducing the count may require a different capture target. Failures trigger configuration recovery attempts and report recovery errors.
+
+### Release virtual screens when finished
+
+Click **停止并释放虚拟屏** (Stop and release virtual screens), or exit the app normally. Its managed virtual-screen stream is ended and the virtual driver is disabled, removing the extra Windows desktop instead of leaving windows on an idle screen. It does not silently continue streaming the primary monitor. Exit cleanup may require UAC approval; cancellation or cleanup failure keeps the app open with an explanation.
+
+Physical-monitor streaming can continue after closing the app. Force-terminating the process or losing power can bypass cleanup; reopen the app and use Stop and release virtual screens to recover.
 
 ## Quality and responsiveness
 
@@ -123,7 +129,7 @@ These are short observations of one integrated-GPU PC/TV combination, not a univ
 - Supported VDD settings: `C:\VirtualDisplayDriver\vdd_settings.xml`.
 - App settings/install logs: `%LOCALAPPDATA%\HDScreenCast`.
 - Backups sit beside the original: `sunshine.conf.backup-<timestamp>` / `vdd_settings.xml.backup-<timestamp>`.
-- Closing the app preserves stream/service/driver state. Use its stop/disable buttons when needed.
+- Normal exit releases virtual displays managed by this app. Physical-monitor streaming may continue. The Stop button stops Sunshine and releases virtual displays.
 - Privileged changes require UAC approval. Windows may require a manual restart; the app never reboots automatically.
 - Current GUI labels are Chinese; documentation is available in English and Chinese.
 - No separate login session, multi-user input isolation, macOS backend, tray icon, automatic updates, or automatic third-party uninstaller yet.
@@ -147,7 +153,7 @@ The preparation script downloads pinned official packages and verifies hashes wi
 
 ## Validation
 
-Type/format checks and Windows release builds are run before publication. Screen detection, navigation, configuration display, and modal refresh have been checked on the development PC. Clean Windows VM installation, installer prompts/reboots, and all privileged recovery paths still require broader validation. This is an early release, not a claim of full hardware coverage.
+Type/format checks and Windows release builds are run before publication. Screen detection, navigation, configuration display, and modal refresh have been checked on the development PC. On 2026-11-02, a live system-level start/stop cycle verified virtual-display creation, Sunshine binding to a 2560×1440 virtual screen, and removal of that screen with the service stopped afterward; TV frame rate was not remeasured in this cycle. Clean Windows VM installation, installer prompts/reboots, and all privileged recovery paths still require broader validation. This is an early release, not a claim of full hardware coverage.
 
 ## License and credits
 

@@ -43,6 +43,9 @@ pub struct ControlApp {
     applying_virtual: bool,
     install_sunshine: bool,
     install_driver: bool,
+    exit_after_cleanup: bool,
+    exit_authorized: bool,
+    close_pending: bool,
 }
 
 impl ControlApp {
@@ -109,6 +112,9 @@ impl ControlApp {
             applying_virtual: false,
             install_sunshine: true,
             install_driver: true,
+            exit_after_cleanup: false,
+            exit_authorized: false,
+            close_pending: false,
         };
         app.refresh(&cc.egui_ctx);
         app
@@ -325,6 +331,15 @@ impl ControlApp {
             .show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
                 ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            ready && self.state.virtual_installed && !self.state.virtual_managed,
+                            egui::Button::new("开启虚拟屏串流"),
+                        )
+                        .clicked()
+                    {
+                        self.act(ctx, Action::StartVirtualStream, "按需创建虚拟屏并开启串流");
+                    }
                     ui.vertical(|ui| {
                         let (label, color) = match self.state.service.as_str() {
                             "Running" => ("Sunshine 正在运行", GREEN),
@@ -371,12 +386,12 @@ impl ControlApp {
                     }
                     if ui
                         .add_enabled(
-                            ready && self.state.running(),
-                            egui::Button::new("停止串流服务"),
+                            ready && (self.state.running() || self.state.virtual_enabled),
+                            egui::Button::new("停止并释放虚拟屏"),
                         )
                         .clicked()
                     {
-                        self.act(ctx, Action::Stop, "停止 Sunshine");
+                        self.act(ctx, Action::Stop, "停止串流并释放虚拟屏");
                     }
                     if ui
                         .add_enabled(ready && self.state.running(), egui::Button::new("重启服务"))
@@ -472,11 +487,11 @@ impl ControlApp {
         egui::Frame::new().fill(PANEL).inner_margin(18.0).corner_radius(10.0).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.heading("独立虚拟屏");
-            let description = if !self.state.virtual_installed { "尚未安装 MTT Virtual Display Driver。安装后可在此启用和关闭。" } else if self.state.virtual_enabled { "驱动已启用。选择上面的虚拟屏，即可把窗口单独移到电视。" } else { "驱动已安装，当前关闭。启用后会新增一块扩展屏。" };
+            let description = if !self.state.virtual_installed { "尚未安装虚拟屏驱动，请先完成初始化。" } else if self.state.virtual_enabled { "虚拟屏正在使用。停止串流或退出应用后会释放，避免闲置扩展屏留住窗口。" } else { "驱动已安装，屏幕按需创建。开启虚拟屏串流时才会出现扩展屏。" };
             ui.label(description);
-            ui.label(RichText::new("关闭正在共享的虚拟屏时，会先将共享目标切回主屏。鼠标、键盘与登录会话共用。").color(MUTED).small());
+            ui.label(RichText::new("关闭虚拟屏会结束对应串流，不会自动把主屏画面传到电视。鼠标、键盘与登录会话共用。").color(MUTED).small());
             ui.horizontal(|ui| {
-                if ui.add_enabled(!self.busy && self.state.virtual_installed && !self.state.virtual_enabled, egui::Button::new("启用虚拟屏")).clicked() { self.act(ctx, Action::SetVirtualDisplay { enabled: true }, "启用虚拟屏"); }
+                if ui.add_enabled(!self.busy && self.state.virtual_installed && (!self.state.virtual_enabled || !self.state.running()), egui::Button::new("开启虚拟屏串流")).clicked() { self.act(ctx, Action::StartVirtualStream, "开启虚拟屏串流"); }
                 if ui.add_enabled(!self.busy && self.state.virtual_installed && self.state.virtual_enabled, egui::Button::new("关闭虚拟屏")).clicked() { self.act(ctx, Action::SetVirtualDisplay { enabled: false }, "关闭虚拟屏"); }
                 if ui.button("Windows 显示设置").clicked() { self.opened("ms-settings:display"); }
                 if ui.button("数量与画面配置").clicked() { self.page = Page::Virtual; }
@@ -633,7 +648,7 @@ impl ControlApp {
         }
         ui.add_space(20.0);
         ui.heading("工作方式");
-        ui.label("• Sunshine 使用默认安装位置：Program Files\\Sunshine。\n• 应用常规运行无需管理员权限，初始化或修改服务、驱动和捕获目标时才申请授权。\n• 每次切换共享目标都会在 Sunshine 配置目录保留备份。\n• 完整离线包支持首次初始化；已安装组件会跳过。\n• 虚拟屏分辨率由驱动及 Windows 显示设置管理。\n• 关闭应用会保留当前串流和屏幕配置。停止服务请使用首页按钮。");
+        ui.label("• Sunshine 使用默认安装位置：Program Files\\Sunshine。\n• 应用常规运行无需管理员权限，初始化或修改服务、驱动和捕获目标时才申请授权。\n• 每次切换共享目标都会在 Sunshine 配置目录保留备份。\n• 完整离线包支持首次初始化；已安装组件会跳过。\n• 虚拟屏分辨率由驱动及 Windows 显示设置管理。\n• 正常退出会释放本应用管理的虚拟屏；实体屏串流可以继续。停止按钮会结束服务并释放虚拟屏。");
         ui.add_space(12.0);
         if ui.button("打开本地设置目录").clicked() {
             self.opened(&platform::data_dir().to_string_lossy());
@@ -657,6 +672,7 @@ impl eframe::App for ControlApp {
                     self.has_snapshot = true;
                 }
                 Event::Action(result, state) => {
+                    let succeeded = result.is_ok();
                     if self.applying_virtual && result.is_ok() {
                         self.virtual_dirty = false;
                     }
@@ -670,11 +686,41 @@ impl eframe::App for ControlApp {
                         Ok(message) => (true, message),
                         Err(error) => (false, error),
                     });
+                    if self.exit_after_cleanup {
+                        self.exit_after_cleanup = false;
+                        if succeeded {
+                            self.exit_authorized = true;
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                    }
                 }
                 Event::Metrics(result) => match result {
                     Ok(metrics) => self.metrics = metrics,
                     Err(error) => self.notice = Some((false, error)),
                 },
+            }
+        }
+        let requested_close =
+            ctx.input(|input| input.viewport().close_requested()) || self.close_pending;
+        if requested_close && !self.exit_authorized {
+            if self.busy {
+                self.close_pending = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            } else if self.state.virtual_enabled
+                && (self.state.virtual_managed
+                    || self
+                        .state
+                        .target_display()
+                        .is_some_and(|display| display.virtual_display))
+            {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                self.close_pending = false;
+                self.exit_after_cleanup = true;
+                self.act(ctx, Action::ReleaseVirtualSession, "退出前释放虚拟屏");
+            } else if self.close_pending {
+                self.close_pending = false;
+                self.exit_authorized = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
         }
         self.sidebar(ctx);
