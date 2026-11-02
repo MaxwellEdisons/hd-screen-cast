@@ -121,9 +121,11 @@ pub struct ActionResult {
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Preferences {
     pub tv_address: String,
     pub adb_path: String,
+    pub language: crate::i18n::Language,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]

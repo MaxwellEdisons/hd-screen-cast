@@ -1,3 +1,4 @@
+use crate::i18n::{Language, tr};
 use crate::{
     model::{Action, DisplayMode, Preferences, Snapshot, VirtualConfig},
     platform,
@@ -7,6 +8,10 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
     thread,
 };
+
+macro_rules! lf {
+    ($language:expr, $($arguments:tt)*) => { tr($language, format!($($arguments)*)) };
+}
 
 const GREEN: Color32 = Color32::from_rgb(119, 226, 174);
 const MUTED: Color32 = Color32::from_rgb(150, 166, 183);
@@ -116,6 +121,14 @@ impl ControlApp {
             exit_authorized: false,
             close_pending: false,
         };
+        cc.egui_ctx.send_viewport_cmd(egui::ViewportCommand::Title(
+            if app.preferences.language == Language::English {
+                "HD Screen Cast"
+            } else {
+                "高清投屏 · HD Screen Cast"
+            }
+            .into(),
+        ));
         app.refresh(&cc.egui_ctx);
         app
     }
@@ -125,7 +138,7 @@ impl ControlApp {
             return;
         }
         self.busy = true;
-        self.task = "读取系统状态".into();
+        self.task = tr(self.preferences.language, "读取系统状态").into();
         let sender = self.sender.clone();
         let context = ctx.clone();
         thread::spawn(move || {
@@ -134,12 +147,12 @@ impl ControlApp {
         });
     }
 
-    fn act(&mut self, ctx: &egui::Context, action: Action, label: &str) {
+    fn act(&mut self, ctx: &egui::Context, action: Action, label: impl AsRef<str>) {
         if self.busy {
             return;
         }
         self.busy = true;
-        self.task = label.into();
+        self.task = label.as_ref().to_owned();
         self.notice = None;
         self.applying_virtual = matches!(action, Action::ConfigureVirtualDisplay { .. });
         let sender = self.sender.clone();
@@ -157,7 +170,7 @@ impl ControlApp {
             return;
         }
         self.busy = true;
-        self.task = "读取电视性能信息".into();
+        self.task = tr(self.preferences.language, "读取电视性能信息").into();
         let preferences = self.preferences.clone();
         let sender = self.sender.clone();
         let context = ctx.clone();
@@ -178,15 +191,24 @@ impl ControlApp {
             .exact_width(204.0)
             .show(ctx, |ui| {
                 ui.add_space(25.0);
-                ui.label(RichText::new("高清投屏").color(GREEN).strong().size(23.0));
-                ui.label(RichText::new("串流控制台").color(MUTED).size(14.0));
+                ui.label(
+                    RichText::new(tr(self.preferences.language, "高清投屏"))
+                        .color(GREEN)
+                        .strong()
+                        .size(23.0),
+                );
+                ui.label(
+                    RichText::new(tr(self.preferences.language, "串流控制台"))
+                        .color(MUTED)
+                        .size(14.0),
+                );
                 ui.add_space(35.0);
                 for (page, label) in [
-                    (Page::Setup, "首次初始化"),
-                    (Page::Screens, "屏幕与串流"),
-                    (Page::Virtual, "虚拟屏配置"),
-                    (Page::Diagnostics, "运行诊断"),
-                    (Page::Settings, "应用设置"),
+                    (Page::Setup, tr(self.preferences.language, "首次初始化")),
+                    (Page::Screens, tr(self.preferences.language, "屏幕与串流")),
+                    (Page::Virtual, tr(self.preferences.language, "虚拟屏配置")),
+                    (Page::Diagnostics, tr(self.preferences.language, "运行诊断")),
+                    (Page::Settings, tr(self.preferences.language, "应用设置")),
                 ] {
                     if ui
                         .add_sized(
@@ -202,22 +224,35 @@ impl ControlApp {
                 ui.separator();
                 ui.label(RichText::new("WINDOWS EDITION").color(MUTED).small());
                 ui.label(
-                    RichText::new(concat!(env!("CARGO_PKG_VERSION"), " · 本地管理"))
-                        .color(MUTED)
-                        .small(),
+                    RichText::new(format!(
+                        "{}{}",
+                        env!("CARGO_PKG_VERSION"),
+                        tr(self.preferences.language, " · 本地管理")
+                    ))
+                    .color(MUTED)
+                    .small(),
                 );
                 ui.add_space(12.0);
                 ui.label(
-                    RichText::new("电视继续使用 Moonlight 连接。屏幕切换后需重新连接串流。")
-                        .color(MUTED)
-                        .small(),
+                    RichText::new(tr(
+                        self.preferences.language,
+                        "电视继续使用 Moonlight 连接。屏幕切换后需重新连接串流。",
+                    ))
+                    .color(MUTED)
+                    .small(),
                 );
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     ui.add_space(15.0);
-                    if ui.button("打开 Sunshine 管理页面").clicked() {
+                    if ui
+                        .button(tr(self.preferences.language, "打开 Sunshine 管理页面"))
+                        .clicked()
+                    {
                         self.opened("https://localhost:47990");
                     }
-                    if ui.button("电视配对").clicked() {
+                    if ui
+                        .button(tr(self.preferences.language, "电视配对"))
+                        .clicked()
+                    {
                         self.opened("https://localhost:47990/pin");
                     }
                 });
@@ -228,17 +263,20 @@ impl ControlApp {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 ui.heading(match self.page {
-                    Page::Setup => "让新电脑准备好高清投屏。",
-                    Page::Screens => "把合适的屏幕，交给电视。",
-                    Page::Virtual => "为电视准备合适的独立桌面。",
-                    Page::Diagnostics => "看清串流的运行状态。",
-                    Page::Settings => "让控制台适合你的设备。",
+                    Page::Setup => tr(self.preferences.language, "让新电脑准备好高清投屏。"),
+                    Page::Screens => tr(self.preferences.language, "把合适的屏幕，交给电视。"),
+                    Page::Virtual => tr(self.preferences.language, "为电视准备合适的独立桌面。"),
+                    Page::Diagnostics => tr(self.preferences.language, "看清串流的运行状态。"),
+                    Page::Settings => tr(self.preferences.language, "让控制台适合你的设备。"),
                 });
                 ui.label(RichText::new("HD Screen Cast / Windows").color(MUTED));
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
-                    .add_enabled(!self.busy, egui::Button::new("刷新状态"))
+                    .add_enabled(
+                        !self.busy,
+                        egui::Button::new(tr(self.preferences.language, "刷新状态")),
+                    )
                     .clicked()
                 {
                     self.refresh(ctx);
@@ -255,37 +293,37 @@ impl ControlApp {
                 })
                 .inner_margin(12.0)
                 .show(ui, |ui| {
-                    ui.label(message);
+                    ui.label(tr(self.preferences.language, message));
                 });
         }
         if let Some(error) = &self.state.error {
-            ui.colored_label(Color32::LIGHT_RED, error);
+            ui.colored_label(Color32::LIGHT_RED, tr(self.preferences.language, error));
         }
         ui.add_space(10.0);
     }
 
     fn setup(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.heading("安装所需组件");
-        ui.label("完整离线包已经包含安装组件。初始化会申请管理员权限，并打开必要的 Windows 安装确认窗口。");
+        ui.heading(tr(self.preferences.language, "安装所需组件"));
+        ui.label(tr(self.preferences.language, "完整离线包已经包含安装组件。初始化会申请管理员权限，并打开必要的 Windows 安装确认窗口。"));
         ui.add_space(12.0);
         egui::Frame::new().fill(PANEL).inner_margin(18.0).corner_radius(10.0).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
             ui.horizontal(|ui| {
-                ui.add_enabled(!self.state.installed && !self.busy, egui::Checkbox::new(&mut self.install_sunshine, "Sunshine 串流服务"));
-                ui.colored_label(if self.state.installed { GREEN } else { MUTED }, if self.state.installed { "已安装，不会覆盖" } else { "需要安装" });
+                ui.add_enabled(!self.state.installed && !self.busy, egui::Checkbox::new(&mut self.install_sunshine, tr(self.preferences.language, "Sunshine 串流服务")));
+                ui.colored_label(if self.state.installed { GREEN } else { MUTED }, if self.state.installed { tr(self.preferences.language, "已安装，不会覆盖") } else { tr(self.preferences.language, "需要安装") });
             });
             ui.horizontal(|ui| {
-                ui.add_enabled(!self.state.virtual_installed && !self.busy, egui::Checkbox::new(&mut self.install_driver, "Virtual Display Driver 虚拟屏驱动"));
-                ui.colored_label(if self.state.virtual_installed { GREEN } else { MUTED }, if self.state.virtual_installed { "已安装，不会覆盖" } else { "可选，独立桌面需要" });
+                ui.add_enabled(!self.state.virtual_installed && !self.busy, egui::Checkbox::new(&mut self.install_driver, tr(self.preferences.language, "Virtual Display Driver 虚拟屏驱动")));
+                ui.colored_label(if self.state.virtual_installed { GREEN } else { MUTED }, if self.state.virtual_installed { tr(self.preferences.language, "已安装，不会覆盖") } else { tr(self.preferences.language, "可选，独立桌面需要") });
             });
-            ui.label(RichText::new("安装前会校验组件 SHA-256；同时安装或修复 Microsoft Visual C++ x64 运行库。现有账号、配对和配置不会复制到其他电脑。").color(MUTED));
-            ui.label(RichText::new("驱动需注册到 Windows，应用不会自动导入根证书或关闭签名检查。如 Windows 提示重启，请手动重启。").color(MUTED));
+            ui.label(RichText::new(tr(self.preferences.language, "安装前会校验组件 SHA-256；同时安装或修复 Microsoft Visual C++ x64 运行库。现有账号、配对和配置不会复制到其他电脑。")).color(MUTED));
+            ui.label(RichText::new(tr(self.preferences.language, "驱动需注册到 Windows，应用不会自动导入根证书或关闭签名检查。如 Windows 提示重启，请手动重启。")).color(MUTED));
         });
         ui.add_space(12.0);
         if !self.state.packages_available {
             ui.colored_label(
                 Color32::YELLOW,
-                "当前目录缺少完整安装组件。请下载并完整解压 Offline 离线包，保留 packages 文件夹。",
+                tr(self.preferences.language, "当前目录缺少完整安装组件。请下载并完整解压 Offline 离线包，保留 packages 文件夹。"),
             );
         }
         let needed = (self.install_sunshine && !self.state.installed)
@@ -293,7 +331,7 @@ impl ControlApp {
         if ui
             .add_enabled(
                 !self.busy && self.has_snapshot && self.state.packages_available && needed,
-                egui::Button::new("一键初始化所选组件"),
+                egui::Button::new(tr(self.preferences.language, "一键初始化所选组件")),
             )
             .clicked()
         {
@@ -303,20 +341,32 @@ impl ControlApp {
                     sunshine: self.install_sunshine,
                     virtual_driver: self.install_driver,
                 },
-                "安装组件，请完成 Windows 安装提示",
+                tr(
+                    self.preferences.language,
+                    "安装组件，请完成 Windows 安装提示",
+                ),
             );
         }
         ui.add_space(18.0);
-        ui.heading("接下来怎么用");
-        ui.label("1. 电脑和电视连接同一路由器，优先使用有线网络或 5GHz Wi-Fi。\n2. 打开 Sunshine 管理页面，设置账号和密码。\n3. 电视安装 Moonlight，选择电脑，将 PIN 输入 Sunshine 配对页面。\n4. 在本应用选择实体屏或虚拟屏，在电视中启动 Desktop。\n5. 先从 2K / 60 FPS / H.264 / HDR 关闭开始，再根据解码性能调整。");
+        ui.heading(tr(self.preferences.language, "接下来怎么用"));
+        ui.label(tr(self.preferences.language, "1. 电脑和电视连接同一路由器，优先使用有线网络或 5GHz Wi-Fi。\n2. 打开 Sunshine 管理页面，设置账号和密码。\n3. 电视安装 Moonlight，选择电脑，将 PIN 输入 Sunshine 配对页面。\n4. 在本应用选择实体屏或虚拟屏，在电视中启动 Desktop。\n5. 先从 2K / 60 FPS / H.264 / HDR 关闭开始，再根据解码性能调整。"));
         ui.horizontal_wrapped(|ui| {
-            if ui.button("设置 Sunshine 账号").clicked() {
+            if ui
+                .button(tr(self.preferences.language, "设置 Sunshine 账号"))
+                .clicked()
+            {
                 self.opened("https://localhost:47990");
             }
-            if ui.button("电视配对").clicked() {
+            if ui
+                .button(tr(self.preferences.language, "电视配对"))
+                .clicked()
+            {
                 self.opened("https://localhost:47990/pin");
             }
-            if ui.button("Moonlight 安卓 APK 下载").clicked() {
+            if ui
+                .button(tr(self.preferences.language, "Moonlight 安卓 APK 下载"))
+                .clicked()
+            {
                 self.opened("https://github.com/moonlight-stream/moonlight-android/releases");
             }
         });
@@ -334,42 +384,64 @@ impl ControlApp {
                     if ui
                         .add_enabled(
                             ready && self.state.virtual_installed && !self.state.virtual_managed,
-                            egui::Button::new("开启虚拟屏串流"),
+                            egui::Button::new(tr(self.preferences.language, "开启虚拟屏串流")),
                         )
                         .clicked()
                     {
-                        self.act(ctx, Action::StartVirtualStream, "按需创建虚拟屏并开启串流");
+                        self.act(
+                            ctx,
+                            Action::StartVirtualStream,
+                            tr(self.preferences.language, "按需创建虚拟屏并开启串流"),
+                        );
                     }
                     ui.vertical(|ui| {
                         let (label, color) = match self.state.service.as_str() {
-                            "Running" => ("Sunshine 正在运行", GREEN),
-                            "Stopped" => ("Sunshine 已停止", MUTED),
-                            "Missing" => ("未检测到 Sunshine 服务", Color32::LIGHT_RED),
-                            "" if !self.has_snapshot => ("正在检测 Sunshine", MUTED),
-                            _ => ("Sunshine 状态待确认", Color32::YELLOW),
+                            "Running" => {
+                                (tr(self.preferences.language, "Sunshine 正在运行"), GREEN)
+                            }
+                            "Stopped" => (tr(self.preferences.language, "Sunshine 已停止"), MUTED),
+                            "Missing" => (
+                                tr(self.preferences.language, "未检测到 Sunshine 服务"),
+                                Color32::LIGHT_RED,
+                            ),
+                            "" if !self.has_snapshot => {
+                                (tr(self.preferences.language, "正在检测 Sunshine"), MUTED)
+                            }
+                            _ => (
+                                tr(self.preferences.language, "Sunshine 状态待确认"),
+                                Color32::YELLOW,
+                            ),
                         };
                         ui.label(RichText::new(label).color(color).strong().size(19.0));
                         let target = self
                             .state
                             .target_display()
                             .map(|display| {
-                                format!(
+                                lf!(
+                                    self.preferences.language,
                                     "当前共享目标：{} · {} × {}",
-                                    display.name, display.width, display.height
+                                    display.name,
+                                    display.width,
+                                    display.height
                                 )
                             })
                             .unwrap_or_else(|| {
                                 if self.state.target.is_empty() {
-                                    "共享目标：跟随 Windows 主屏".into()
+                                    tr(self.preferences.language, "共享目标：跟随 Windows 主屏")
+                                        .into()
                                 } else {
-                                    "共享目标未连接，请选择可用屏幕".into()
+                                    tr(self.preferences.language, "共享目标未连接，请选择可用屏幕")
+                                        .into()
                                 }
                             });
                         ui.label(RichText::new(target).color(MUTED));
                         ui.label(
-                            RichText::new("服务运行不代表电视已连接；实际画面以 Moonlight 为准。")
-                                .color(MUTED)
-                                .small(),
+                            RichText::new(tr(
+                                self.preferences.language,
+                                "服务运行不代表电视已连接；实际画面以 Moonlight 为准。",
+                            ))
+                            .color(MUTED)
+                            .small(),
                         );
                     });
                 });
@@ -378,37 +450,62 @@ impl ControlApp {
                     if ui
                         .add_enabled(
                             ready && self.state.service == "Stopped",
-                            egui::Button::new("启动串流服务"),
+                            egui::Button::new(tr(self.preferences.language, "启动串流服务")),
                         )
                         .clicked()
                     {
-                        self.act(ctx, Action::Start, "启动 Sunshine");
+                        self.act(
+                            ctx,
+                            Action::Start,
+                            tr(self.preferences.language, "启动 Sunshine"),
+                        );
                     }
                     if ui
                         .add_enabled(
                             ready && (self.state.running() || self.state.virtual_enabled),
-                            egui::Button::new("停止并释放虚拟屏"),
+                            egui::Button::new(tr(self.preferences.language, "停止并释放虚拟屏")),
                         )
                         .clicked()
                     {
-                        self.act(ctx, Action::Stop, "停止串流并释放虚拟屏");
+                        self.act(
+                            ctx,
+                            Action::Stop,
+                            tr(self.preferences.language, "停止串流并释放虚拟屏"),
+                        );
                     }
                     if ui
-                        .add_enabled(ready && self.state.running(), egui::Button::new("重启服务"))
+                        .add_enabled(
+                            ready && self.state.running(),
+                            egui::Button::new(tr(self.preferences.language, "重启服务")),
+                        )
                         .clicked()
                     {
-                        self.act(ctx, Action::Restart, "重启 Sunshine");
+                        self.act(
+                            ctx,
+                            Action::Restart,
+                            tr(self.preferences.language, "重启 Sunshine"),
+                        );
                     }
                 });
             });
         ui.add_space(12.0);
         ui.horizontal(|ui| {
-            ui.heading("选择共享屏幕");
-            ui.label(RichText::new(format!("{} 块已连接", self.state.displays.len())).color(MUTED));
+            ui.heading(tr(self.preferences.language, "选择共享屏幕"));
+            ui.label(
+                RichText::new(lf!(
+                    self.preferences.language,
+                    "{} 块已连接",
+                    self.state.displays.len()
+                ))
+                .color(MUTED),
+            );
         });
         ui.label(
-            RichText::new("应用只修改 Sunshine 的捕获目标，不会更改你的 Windows 主屏。")
-                .color(MUTED),
+            RichText::new(tr(
+                self.preferences.language,
+                "应用只修改 Sunshine 的捕获目标，不会更改你的 Windows 主屏。",
+            ))
+            .color(MUTED),
         );
         let displays = self.state.displays.clone();
         for display in displays {
@@ -439,13 +536,19 @@ impl ControlApp {
                                     .size(17.0),
                                 );
                                 if display.virtual_display {
-                                    ui.colored_label(GREEN, "独立虚拟屏");
+                                    ui.colored_label(
+                                        GREEN,
+                                        tr(self.preferences.language, "独立虚拟屏"),
+                                    );
                                 }
                                 if display.primary {
-                                    ui.colored_label(MUTED, "主屏");
+                                    ui.colored_label(MUTED, tr(self.preferences.language, "主屏"));
                                 }
                                 if selected {
-                                    ui.colored_label(GREEN, "当前目标");
+                                    ui.colored_label(
+                                        GREEN,
+                                        tr(self.preferences.language, "当前目标"),
+                                    );
                                 }
                             });
                             ui.label(
@@ -457,9 +560,12 @@ impl ControlApp {
                             );
                             if display.id.is_none() {
                                 ui.label(
-                                    RichText::new("Sunshine 尚未识别此屏幕，请重启服务后刷新。")
-                                        .color(Color32::YELLOW)
-                                        .small(),
+                                    RichText::new(tr(
+                                        self.preferences.language,
+                                        "Sunshine 尚未识别此屏幕，请重启服务后刷新。",
+                                    ))
+                                    .color(Color32::YELLOW)
+                                    .small(),
                                 );
                             }
                         });
@@ -467,7 +573,7 @@ impl ControlApp {
                             if ui
                                 .add_enabled(
                                     ready && !selected && display.id.is_some(),
-                                    egui::Button::new("共享此屏幕"),
+                                    egui::Button::new(tr(self.preferences.language, "共享此屏幕")),
                                 )
                                 .clicked()
                             {
@@ -476,7 +582,7 @@ impl ControlApp {
                                     Action::SelectDisplay {
                                         id: display.id.clone().unwrap_or_default(),
                                     },
-                                    "切换共享屏幕",
+                                    tr(self.preferences.language, "切换共享屏幕"),
                                 );
                             }
                         });
@@ -486,62 +592,68 @@ impl ControlApp {
         ui.add_space(12.0);
         egui::Frame::new().fill(PANEL).inner_margin(18.0).corner_radius(10.0).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.heading("独立虚拟屏");
-            let description = if !self.state.virtual_installed { "尚未安装虚拟屏驱动，请先完成初始化。" } else if self.state.virtual_enabled { "虚拟屏正在使用。停止串流或退出应用后会释放，避免闲置扩展屏留住窗口。" } else { "驱动已安装，屏幕按需创建。开启虚拟屏串流时才会出现扩展屏。" };
+            ui.heading(tr(self.preferences.language, "独立虚拟屏"));
+            let description = if !self.state.virtual_installed { tr(self.preferences.language, "尚未安装虚拟屏驱动，请先完成初始化。") } else if self.state.virtual_enabled { tr(self.preferences.language, "虚拟屏正在使用。停止串流或退出应用后会释放，避免闲置扩展屏留住窗口。") } else { tr(self.preferences.language, "驱动已安装，屏幕按需创建。开启虚拟屏串流时才会出现扩展屏。") };
             ui.label(description);
-            ui.label(RichText::new("关闭虚拟屏会结束对应串流，不会自动把主屏画面传到电视。鼠标、键盘与登录会话共用。").color(MUTED).small());
+            ui.label(RichText::new(tr(self.preferences.language, "关闭虚拟屏会结束对应串流，不会自动把主屏画面传到电视。鼠标、键盘与登录会话共用。")).color(MUTED).small());
             ui.horizontal(|ui| {
-                if ui.add_enabled(!self.busy && self.state.virtual_installed && (!self.state.virtual_enabled || !self.state.running()), egui::Button::new("开启虚拟屏串流")).clicked() { self.act(ctx, Action::StartVirtualStream, "开启虚拟屏串流"); }
-                if ui.add_enabled(!self.busy && self.state.virtual_installed && self.state.virtual_enabled, egui::Button::new("关闭虚拟屏")).clicked() { self.act(ctx, Action::SetVirtualDisplay { enabled: false }, "关闭虚拟屏"); }
-                if ui.button("Windows 显示设置").clicked() { self.opened("ms-settings:display"); }
-                if ui.button("数量与画面配置").clicked() { self.page = Page::Virtual; }
-                if ui.add_enabled(ready && !self.state.target.is_empty(), egui::Button::new("跟随主屏")).clicked() { self.act(ctx, Action::SelectDisplay { id: String::new() }, "恢复主屏共享"); }
+                if ui.add_enabled(!self.busy && self.state.virtual_installed && (!self.state.virtual_enabled || !self.state.running()), egui::Button::new(tr(self.preferences.language, "开启虚拟屏串流"))).clicked() { self.act(ctx, Action::StartVirtualStream, tr(self.preferences.language, "开启虚拟屏串流")); }
+                if ui.add_enabled(!self.busy && self.state.virtual_installed && self.state.virtual_enabled, egui::Button::new(tr(self.preferences.language, "关闭虚拟屏"))).clicked() { self.act(ctx, Action::SetVirtualDisplay { enabled: false }, tr(self.preferences.language, "关闭虚拟屏")); }
+                if ui.button(tr(self.preferences.language, "Windows 显示设置")).clicked() { self.opened("ms-settings:display"); }
+                if ui.button(tr(self.preferences.language, "数量与画面配置")).clicked() { self.page = Page::Virtual; }
+                if ui.add_enabled(ready && !self.state.target.is_empty(), egui::Button::new(tr(self.preferences.language, "跟随主屏"))).clicked() { self.act(ctx, Action::SelectDisplay { id: String::new() }, tr(self.preferences.language, "恢复主屏共享")); }
             });
         });
         ui.add_space(10.0);
-        ui.label(RichText::new("已验证的电视端配置：1440p / 60 FPS / H.264 / HDR 关闭 / 约 31 Mbps。请在 Moonlight 中设置，主机不会覆盖这些参数。").color(MUTED));
+        ui.label(RichText::new(tr(self.preferences.language, "已验证的电视端配置：1440p / 60 FPS / H.264 / HDR 关闭 / 约 31 Mbps。请在 Moonlight 中设置，主机不会覆盖这些参数。")).color(MUTED));
     }
 
     fn virtual_settings(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.heading("虚拟屏数量");
-        ui.label("增加的屏幕会作为 Windows 扩展桌面；Sunshine 每次共享其中一块屏幕。");
+        ui.heading(tr(self.preferences.language, "虚拟屏数量"));
+        ui.label(tr(
+            self.preferences.language,
+            "增加的屏幕会作为 Windows 扩展桌面；Sunshine 每次共享其中一块屏幕。",
+        ));
         if let Some(error) = &self.state.virtual_config_error {
-            ui.colored_label(Color32::LIGHT_RED, error);
+            ui.colored_label(Color32::LIGHT_RED, tr(self.preferences.language, error));
         }
         let Some(mut draft) = self.virtual_draft.clone() else {
-            ui.label("读取到受支持的虚拟屏驱动配置后，可以在这里编辑。");
+            ui.label(tr(
+                self.preferences.language,
+                "读取到受支持的虚拟屏驱动配置后，可以在这里编辑。",
+            ));
             return;
         };
         let previous = draft.clone();
         ui.add_enabled_ui(!self.busy, |ui| {
             ui.horizontal(|ui| {
-                ui.label("数量");
-                ui.add(egui::DragValue::new(&mut draft.count).range(1..=4).suffix(" 块"));
-                ui.label(RichText::new("此版本支持 1～4 块").color(MUTED));
+                ui.label(tr(self.preferences.language, "数量"));
+                ui.add(egui::DragValue::new(&mut draft.count).range(1..=4).suffix(tr(self.preferences.language, " 块")));
+                ui.label(RichText::new(tr(self.preferences.language, "此版本支持 1～4 块")).color(MUTED));
             });
             ui.add_space(18.0);
-            ui.heading("可用画面模式");
-            ui.label("这些模式供所有虚拟屏使用。每块屏的当前分辨率和刷新率，在 Windows 显示设置中选择。");
-            ui.label(RichText::new("先保留当前的 2560 × 1440 / 60Hz，再按需要添加其他模式。电视端画质仍在 Moonlight 中设置。").color(MUTED));
+            ui.heading(tr(self.preferences.language, "可用画面模式"));
+            ui.label(tr(self.preferences.language, "这些模式供所有虚拟屏使用。每块屏的当前分辨率和刷新率，在 Windows 显示设置中选择。"));
+            ui.label(RichText::new(tr(self.preferences.language, "先保留当前的 2560 × 1440 / 60Hz，再按需要添加其他模式。电视端画质仍在 Moonlight 中设置。")).color(MUTED));
             let mut remove = None;
             let can_remove = draft.modes.len() > 1;
             for (index, mode) in draft.modes.iter_mut().enumerate() {
                 ui.push_id(index, |ui| {
                     egui::Frame::new().fill(PANEL).inner_margin(12.0).corner_radius(8.0).show(ui, |ui| {
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(format!("模式 {}", index + 1));
+                            ui.label(lf!(self.preferences.language, "模式 {}", index + 1));
                             ui.add(egui::DragValue::new(&mut mode.width).range(640..=7680).speed(8.0));
                             ui.label("×");
                             ui.add(egui::DragValue::new(&mut mode.height).range(480..=4320).speed(8.0));
                             ui.add(egui::DragValue::new(&mut mode.refresh_hz).range(24..=240).suffix(" Hz"));
-                            if ui.add_enabled(can_remove, egui::Button::new("移除")).clicked() { remove = Some(index); }
+                            if ui.add_enabled(can_remove, egui::Button::new(tr(self.preferences.language, "移除"))).clicked() { remove = Some(index); }
                         });
                     });
                 });
             }
             if let Some(index) = remove { draft.modes.remove(index); }
             ui.horizontal_wrapped(|ui| {
-                for (label, width, height) in [("添加 1080p / 60Hz", 1920, 1080), ("添加 2K / 60Hz", 2560, 1440), ("添加 4K / 60Hz", 3840, 2160)] {
+                for (label, width, height) in [(tr(self.preferences.language, "添加 1080p / 60Hz"), 1920, 1080), (tr(self.preferences.language, "添加 2K / 60Hz"), 2560, 1440), (tr(self.preferences.language, "添加 4K / 60Hz"), 3840, 2160)] {
                     let mode = DisplayMode { width, height, refresh_hz: 60 };
                     if ui.add_enabled(draft.modes.len() < 12 && !draft.modes.contains(&mode), egui::Button::new(label)).clicked() { draft.modes.push(mode); }
                 }
@@ -552,51 +664,63 @@ impl ControlApp {
         }
         self.virtual_draft = Some(draft.clone());
         ui.add_space(16.0);
-        ui.label(RichText::new("保存前会备份配置。驱动启用时，应用会重启虚拟屏和正在运行的 Sunshine，串流将短暂断开；虚拟屏数量减少时，会重新选择可用目标。其他驱动选项保持不变。").color(MUTED));
+        ui.label(RichText::new(tr(self.preferences.language, "保存前会备份配置。驱动启用时，应用会重启虚拟屏和正在运行的 Sunshine，串流将短暂断开；虚拟屏数量减少时，会重新选择可用目标。其他驱动选项保持不变。")).color(MUTED));
         let valid = draft.validate();
         if let Err(error) = &valid {
-            ui.colored_label(Color32::LIGHT_RED, error);
+            ui.colored_label(Color32::LIGHT_RED, tr(self.preferences.language, error));
         }
         ui.horizontal(|ui| {
             let changed = self.state.virtual_config.as_ref() != Some(&draft);
             if ui
                 .add_enabled(
                     !self.busy && self.state.virtual_installed && changed && valid.is_ok(),
-                    egui::Button::new("保存并应用配置"),
+                    egui::Button::new(tr(self.preferences.language, "保存并应用配置")),
                 )
                 .clicked()
             {
                 self.act(
                     ctx,
                     Action::ConfigureVirtualDisplay { config: draft },
-                    "应用虚拟屏配置",
+                    tr(self.preferences.language, "应用虚拟屏配置"),
                 );
             }
             if ui
                 .add_enabled(
                     !self.busy && self.virtual_dirty,
-                    egui::Button::new("撤销未保存修改"),
+                    egui::Button::new(tr(self.preferences.language, "撤销未保存修改")),
                 )
                 .clicked()
             {
                 self.virtual_dirty = false;
                 self.virtual_draft.clone_from(&self.state.virtual_config);
             }
-            if ui.button("Windows 显示设置").clicked() {
+            if ui
+                .button(tr(self.preferences.language, "Windows 显示设置"))
+                .clicked()
+            {
                 self.opened("ms-settings:display");
             }
         });
     }
 
     fn diagnostics(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        ui.heading("电视性能采样（可选）");
-        ui.label("通过已授权的 ADB 读取 Moonlight 性能信息，不会清除日志或修改电视画质。");
+        ui.heading(tr(self.preferences.language, "电视性能采样（可选）"));
+        ui.label(tr(
+            self.preferences.language,
+            "通过已授权的 ADB 读取 Moonlight 性能信息，不会清除日志或修改电视画质。",
+        ));
         ui.label(
-            RichText::new("先在应用设置填写电视地址，在 Moonlight 中开启性能信息，并进入串流。")
-                .color(MUTED),
+            RichText::new(tr(
+                self.preferences.language,
+                "先在应用设置填写电视地址，在 Moonlight 中开启性能信息，并进入串流。",
+            ))
+            .color(MUTED),
         );
         if ui
-            .add_enabled(!self.busy, egui::Button::new("读取电视性能"))
+            .add_enabled(
+                !self.busy,
+                egui::Button::new(tr(self.preferences.language, "读取电视性能")),
+            )
             .clicked()
         {
             self.read_metrics(ctx);
@@ -606,15 +730,16 @@ impl ControlApp {
                 .fill(PANEL)
                 .inner_margin(15.0)
                 .show(ui, |ui| {
-                    ui.label(&self.metrics);
+                    ui.label(tr(self.preferences.language, &self.metrics));
                 });
         }
         ui.add_space(15.0);
-        ui.heading("Sunshine 最近日志");
+        ui.heading(tr(self.preferences.language, "Sunshine 最近日志"));
         ui.label(
-            RichText::new(
+            RichText::new(tr(
+                self.preferences.language,
                 "日志不会自动上传，也不会定时读取。点击刷新状态获取最新日志；电视性能为手动采样。",
-            )
+            ))
             .color(MUTED),
         );
         let mut log = self.state.log.as_str();
@@ -627,30 +752,76 @@ impl ControlApp {
     }
 
     fn settings(&mut self, ui: &mut egui::Ui) {
-        ui.heading("电视诊断连接");
-        ui.label("电视 IP 地址（可带端口）");
+        ui.heading(tr(self.preferences.language, "界面语言"));
+        let previous_language = self.preferences.language;
+        egui::ComboBox::from_id_salt("interface-language")
+            .selected_text(match self.preferences.language {
+                Language::English => "English",
+                Language::SimplifiedChinese => "简体中文",
+            })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.preferences.language, Language::English, "English");
+                ui.selectable_value(
+                    &mut self.preferences.language,
+                    Language::SimplifiedChinese,
+                    "简体中文",
+                );
+            });
+        ui.label(
+            RichText::new(tr(
+                self.preferences.language,
+                "语言切换立即生效，并在下次启动时保留。",
+            ))
+            .color(MUTED),
+        );
+        if self.preferences.language != previous_language {
+            self.notice = Some(match platform::save_preferences(&self.preferences) {
+                Ok(()) => (true, tr(self.preferences.language, "语言设置已保存。")),
+                Err(error) => (false, error),
+            });
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Title(
+                if self.preferences.language == Language::English {
+                    "HD Screen Cast"
+                } else {
+                    "高清投屏 · HD Screen Cast"
+                }
+                .into(),
+            ));
+        }
+        ui.add_space(20.0);
+        ui.heading(tr(self.preferences.language, "电视诊断连接"));
+        ui.label(tr(self.preferences.language, "电视 IP 地址（可带端口）"));
         ui.add(
             egui::TextEdit::singleline(&mut self.preferences.tv_address)
                 .hint_text("192.168.1.100:5555")
                 .desired_width(420.0),
         );
-        ui.label("ADB 程序路径（留空使用系统 PATH）");
+        ui.label(tr(
+            self.preferences.language,
+            "ADB 程序路径（留空使用系统 PATH）",
+        ));
         ui.add(
             egui::TextEdit::singleline(&mut self.preferences.adb_path)
                 .hint_text("C:\\Android\\platform-tools\\adb.exe")
                 .desired_width(600.0),
         );
-        if ui.button("保存设置").clicked() {
+        if ui
+            .button(tr(self.preferences.language, "保存设置"))
+            .clicked()
+        {
             self.notice = Some(match platform::save_preferences(&self.preferences) {
-                Ok(()) => (true, "设置已保存。".into()),
+                Ok(()) => (true, tr(self.preferences.language, "设置已保存。").into()),
                 Err(error) => (false, error),
             });
         }
         ui.add_space(20.0);
-        ui.heading("工作方式");
-        ui.label("• Sunshine 使用默认安装位置：Program Files\\Sunshine。\n• 应用常规运行无需管理员权限，初始化或修改服务、驱动和捕获目标时才申请授权。\n• 每次切换共享目标都会在 Sunshine 配置目录保留备份。\n• 完整离线包支持首次初始化；已安装组件会跳过。\n• 虚拟屏分辨率由驱动及 Windows 显示设置管理。\n• 正常退出会释放本应用管理的虚拟屏；实体屏串流可以继续。停止按钮会结束服务并释放虚拟屏。");
+        ui.heading(tr(self.preferences.language, "工作方式"));
+        ui.label(tr(self.preferences.language, "• Sunshine 使用默认安装位置：Program Files\\Sunshine。\n• 应用常规运行无需管理员权限，初始化或修改服务、驱动和捕获目标时才申请授权。\n• 每次切换共享目标都会在 Sunshine 配置目录保留备份。\n• 完整离线包支持首次初始化；已安装组件会跳过。\n• 虚拟屏分辨率由驱动及 Windows 显示设置管理。\n• 正常退出会释放本应用管理的虚拟屏；实体屏串流可以继续。停止按钮会结束服务并释放虚拟屏。"));
         ui.add_space(12.0);
-        if ui.button("打开本地设置目录").clicked() {
+        if ui
+            .button(tr(self.preferences.language, "打开本地设置目录"))
+            .clicked()
+        {
             self.opened(&platform::data_dir().to_string_lossy());
         }
     }
@@ -716,7 +887,11 @@ impl eframe::App for ControlApp {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.close_pending = false;
                 self.exit_after_cleanup = true;
-                self.act(ctx, Action::ReleaseVirtualSession, "退出前释放虚拟屏");
+                self.act(
+                    ctx,
+                    Action::ReleaseVirtualSession,
+                    tr(self.preferences.language, "退出前释放虚拟屏"),
+                );
             } else if self.close_pending {
                 self.close_pending = false;
                 self.exit_authorized = true;
@@ -747,7 +922,10 @@ impl eframe::App for ControlApp {
                     ui.label(format!("{}…", self.task));
                 });
                 ui.add_space(8.0);
-                ui.label(RichText::new("完成后会自动更新状态。").color(MUTED));
+                ui.label(
+                    RichText::new(tr(self.preferences.language, "完成后会自动更新状态。"))
+                        .color(MUTED),
+                );
             });
         }
     }

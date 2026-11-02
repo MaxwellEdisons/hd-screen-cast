@@ -1,6 +1,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod i18n;
 mod model;
 mod platform;
 mod virtual_config;
@@ -16,7 +17,7 @@ fn main() -> eframe::Result {
     }
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_title("高清投屏 · HD Screen Cast")
+            .with_title("HD Screen Cast")
             .with_inner_size([1120.0, 780.0])
             .with_min_inner_size([900.0, 650.0]),
         ..Default::default()

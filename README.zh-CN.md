@@ -4,7 +4,7 @@
 
 [English](README.md) · [下载运行包](https://github.com/MaxwellEdisons/hd-screen-cast/releases/latest) · [Moonlight 安卓 APK](https://github.com/moonlight-stream/moonlight-android/releases)
 
-Rust 原生桌面应用，将 Sunshine 安装、共享屏幕切换、虚拟屏配置和本地诊断集中在一个界面中。电视端继续使用 Moonlight 接收画面。
+Rust 原生桌面应用，将 Sunshine 安装、共享屏幕切换、虚拟屏配置和本地诊断集中在一个界面中。电视端继续使用 Moonlight 接收画面。**界面默认英文**，可在 **Settings → Interface language → 简体中文** 切换；立即生效，并保存到下次启动。本文步骤使用切换后的中文按钮名称。
 
 ## 适合哪些场景？
 
@@ -133,7 +133,7 @@ Apple TV 应安装 tvOS 版 Moonlight。三星 Tizen 和 LG webOS 不能直接�
 - 备份与原文件放在一起：`sunshine.conf.backup-<时间戳>`、`vdd_settings.xml.backup-<时间戳>`。
 - 正常退出会释放本应用管理的虚拟屏；实体屏串流可以继续运行。停止按钮会停止 Sunshine 并释放虚拟屏。
 - 系统修改需要管理员授权；Windows 要求重启时请手动重启，应用不会自动重启电脑。
-- 当前 GUI 为中文，提供中英文文档。
+- GUI 支持英文和简体中文，默认英文；在“应用设置 → 界面语言”切换并自动保存。原始系统错误和日志保留来源语言。提供中英文文档。
 - 尚无独立登录会话、多用户输入隔离、macOS 后端、托盘、自动更新和第三方组件自动卸载。
 - 控制台未进行 Authenticode 代码签名；随附组件保持官方原样，各自适用自己的签名和许可证。
 
